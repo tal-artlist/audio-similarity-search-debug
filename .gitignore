@@ -56,3 +56,6 @@ output/
 
 # Note: data/ and models/ folders are ~527MB total
 # Consider using Git LFS for large files if pushing to remote
+
+# Large data files (exceed GitHub's 100MB limit)
+data/embeddings/audio_embeddings_essentia.parquet
