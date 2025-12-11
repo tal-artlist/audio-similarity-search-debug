@@ -1,4 +1,4 @@
-# Audio Similarity Search
+w# Audio Similarity Search
 
 Find similar songs using raw Essentia audio embeddings. This tool performs audio-based similarity search using pre-computed embeddings and returns the most similar songs from a catalog.
 

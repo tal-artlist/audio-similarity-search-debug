@@ -64,9 +64,18 @@ def load_catalog_embeddings(emb_pq: str, catalog_pq: str) -> tuple[np.ndarray, p
 
 def embed_query(audio_path: str, audio_model: EssentiaModel, remove_vo: bool = False, 
                 vo_threshold: float = 0.5, df_model: tuple = None, 
-                output_dir: str = "output") -> tuple[np.ndarray, dict]:
+                output_dir: str = "output", start_second: float = None) -> tuple[np.ndarray, dict]:
     """
     Generate embedding for query audio, optionally with VO removal.
+    
+    Args:
+        audio_path: Path to audio file
+        audio_model: Essentia model instance
+        remove_vo: Whether to remove vocals
+        vo_threshold: Voice detection threshold
+        df_model: DeepFilterNet model tuple
+        output_dir: Output directory for processed audio
+        start_second: Optional starting second for audio slice (will extract 30s from this point)
     
     Returns:
         tuple: (embedding, metadata_dict)
@@ -74,10 +83,70 @@ def embed_query(audio_path: str, audio_model: EssentiaModel, remove_vo: bool = F
     metadata = {
         "vo_removed": False,
         "vo_signal_ratio": None,
-        "vo_cleaned_path": None
+        "vo_cleaned_path": None,
+        "sliced": False,
+        "slice_start": None,
+        "slice_duration": None
     }
     
     audio_data_for_embedding = audio_path
+    
+    # Step 0: Slice audio if start_second is specified
+    if start_second is not None:
+        try:
+            logging.info(f"✂️ Slicing audio starting at {start_second}s for 30s...")
+            from pydub import AudioSegment
+            import tempfile
+            
+            # Load audio
+            audio = AudioSegment.from_file(audio_path)
+            audio_duration_ms = len(audio)
+            audio_duration_s = audio_duration_ms / 1000.0
+            
+            # Calculate slice parameters
+            start_ms = int(start_second * 1000)
+            slice_duration_s = 30.0
+            end_ms = start_ms + int(slice_duration_s * 1000)
+            
+            # Validate and adjust slice
+            if start_ms >= audio_duration_ms:
+                logging.warning(f"⚠️ Start time {start_second}s exceeds audio duration {audio_duration_s:.1f}s. Using full audio.")
+            else:
+                # Adjust end if it exceeds audio duration
+                if end_ms > audio_duration_ms:
+                    end_ms = audio_duration_ms
+                    actual_duration_s = (end_ms - start_ms) / 1000.0
+                    logging.info(f"⚠️ Slice extends beyond audio end. Using {actual_duration_s:.1f}s instead of 30s.")
+                else:
+                    actual_duration_s = slice_duration_s
+                
+                # Slice audio
+                sliced_audio = audio[start_ms:end_ms]
+                
+                # Save to temporary file
+                os.makedirs(output_dir, exist_ok=True)
+                input_filename = Path(audio_path).stem
+                timestamp = pd.Timestamp.now().strftime("%Y%m%d-%H%M%S")
+                sliced_filename = f"{input_filename}_{timestamp}_sliced_{int(start_second)}s-{int(start_second + actual_duration_s)}s.wav"
+                sliced_path = os.path.join(output_dir, sliced_filename)
+                
+                sliced_audio.export(sliced_path, format="wav")
+                
+                logging.info(f"✅ Audio sliced: {start_second}s to {start_second + actual_duration_s:.1f}s (duration: {actual_duration_s:.1f}s)")
+                logging.info(f"💾 Sliced audio saved to: {sliced_path}")
+                
+                metadata["sliced"] = True
+                metadata["slice_start"] = start_second
+                metadata["slice_duration"] = actual_duration_s
+                
+                # Use sliced audio for all subsequent processing
+                audio_data_for_embedding = sliced_path
+                
+                del audio, sliced_audio
+                
+        except Exception as e:
+            logging.error(f"❌ Audio slicing failed: {e}")
+            logging.warning("⚠️ Continuing with full audio")
     
     # Step 1: VO Removal (if requested)
     if remove_vo:
@@ -201,6 +270,14 @@ def parse_args() -> argparse.Namespace:
         help="Directory to save intermediate VO-cleaned audio files (default: output)"
     )
     
+    # Audio slicing
+    parser.add_argument(
+        "--start-second",
+        type=float,
+        default=None,
+        help="Starting second for audio analysis. Will analyze 30 seconds from this point (when applicable)."
+    )
+    
     # Misc
     parser.add_argument(
         "--debug", 
@@ -272,7 +349,8 @@ def main() -> None:
             remove_vo=args.remove_vo,
             vo_threshold=args.vo_threshold,
             df_model=df_model,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            start_second=args.start_second
         )
     except Exception as e:
         logging.error("Failed to generate query embedding: %s", e)
@@ -322,6 +400,10 @@ def main() -> None:
     # Display results
     print(f"\nQuery: {Path(args.audio).name}")
     print(f"Model: Essentia (raw embeddings)")
+    
+    # Display slicing info if applicable
+    if vo_metadata["sliced"]:
+        print(f"Audio Slice: {vo_metadata['slice_start']:.1f}s to {vo_metadata['slice_start'] + vo_metadata['slice_duration']:.1f}s (duration: {vo_metadata['slice_duration']:.1f}s)")
     
     # Display VO removal info if applicable
     if args.remove_vo:
