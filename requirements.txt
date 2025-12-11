@@ -1,0 +1,19 @@
+# Core ML/Audio Processing
+torch>=2.2.0
+numpy>=1.24.0
+pandas>=2.0.0
+pyarrow>=10.0.0
+
+# Audio processing
+essentia-tensorflow>=2.1b6.dev1110
+pydub>=0.25.1
+torchaudio>=2.0.0
+
+# VO Removal (DeepFilterNet)
+DeepFilterNet>=0.5.6
+
+# Utilities
+tqdm>=4.65.0
+
+# Note: TensorFlow is a dependency of essentia-tensorflow and will be installed automatically
+# If you have GPU support, make sure to install the appropriate CUDA/cuDNN libraries
