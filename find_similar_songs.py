@@ -156,8 +156,8 @@ def embed_query(audio_path: str, audio_model: EssentiaModel, remove_vo: bool = F
             try:
                 logging.info("🎙️ Starting VO removal process...")
                 
-                # Load audio file as bytes
-                with open(audio_path, 'rb') as f:
+                # Load audio file as bytes - USE THE CURRENT audio_data_for_embedding (sliced or original)
+                with open(audio_data_for_embedding, 'rb') as f:
                     audio_bytes = f.read()
                 
                 # Create audio loader and process
@@ -175,8 +175,8 @@ def embed_query(audio_path: str, audio_model: EssentiaModel, remove_vo: bool = F
                     # Save the VO-cleaned audio
                     os.makedirs(output_dir, exist_ok=True)
                     
-                    # Create output filename based on input
-                    input_filename = Path(audio_path).stem
+                    # Create output filename based on current audio (sliced or original)
+                    input_filename = Path(audio_data_for_embedding).stem
                     timestamp = pd.Timestamp.now().strftime("%Y%m%d-%H%M%S")
                     vo_cleaned_filename = f"{input_filename}_{timestamp}_vo_cleaned.wav"
                     vo_cleaned_path = os.path.join(output_dir, vo_cleaned_filename)
